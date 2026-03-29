@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ar" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee ETL Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .header-section { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 0; border-radius: 0 0 25px 25px; margin-bottom: 30px; }
+        .btn-run { background-color: #ffcc00; border: none; color: #333; font-weight: bold; padding: 10px 25px; border-radius: 25px; transition: 0.3s; }
+        .btn-run:hover { background-color: #e6b800; transform: translateY(-2px); }
+        .status-badge { font-size: 0.9rem; padding: 5px 15px; border-radius: 20px; }
+        .thread-tag { background-color: #e9ecef; padding: 2px 10px; border-radius: 5px; margin: 2px; display: inline-block; font-size: 0.85rem; border: 1px solid #dee2e6; }
+        .alert-info-custom { border-left: 5px solid #0dcaf0; background-color: #f0faff; }
+    </style>
+</head>
+<body>
+
+<div class="header-section text-center">
+    <div class="container">
+        <h1 class="display-5 fw-bold">Employee ETL Dashboard</h1>
+        <p class="lead">Spring Batch + Multi-threading Monitoring Dashboard</p>
+        <button id="runJobBtn" class="btn btn-run mt-3">🚀 Launch ETL Job</button>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Status & Stats Overview -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Total Employees</h6>
+                <h2 id="totalEmployees">0</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-3 text-center">
+                <h6 class="text-muted">Threads Utilized</h6>
+                <h2 id="threadCount">0</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-3 text-center bg-light">
+                <h6 class="text-muted">Job Status</h6>
+                <div id="jobStatus" class="mt-2"><span class="badge bg-secondary status-badge">IDLE</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multi-threading Tip -->
+    <div class="alert alert-info-custom d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <strong>💡 Threading Tip:</strong> With 100 records and 200ms delay per record, you can clearly see the Parallel Processing Threads in action!
+        </div>
+        <button class="btn btn-sm btn-outline-danger" onclick="resetDatabase()">🗑️ Clear Database</button>
+    </div>
+
+    <div class="row">
+        <!-- Department Statistics -->
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header bg-white fw-bold">Department Breakdown</div>
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Department</th>
+                                <th>Count</th>
+                                <th>Avg Salary</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deptStatsTable">
+                            <tr><td colspan="3" class="text-center text-muted">No data available. Run the job first.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Thread Usage Detail -->
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header bg-white fw-bold">Parallel Processing Threads</div>
+                <div class="card-body">
+                    <div id="threadList" class="d-flex flex-wrap">
+                        <p class="text-muted">No threads active yet.</p>
+                    </div>
+                    <hr>
+                    <div id="threadMessage" class="small text-info"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Full Results Table -->
+    <div class="card mt-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="fw-bold">Processed Employee Records</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="loadData()">🔄 Refresh Data</button>
+        </div>
+        <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Dept</th>
+                        <th>Salary</th>
+                        <th>Processed By Thread</th>
+                    </tr>
+                </thead>
+                <tbody id="employeesTable">
+                    <!-- Data populated via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = '/api/etl';
+
+    async function resetDatabase() {
+        if(confirm('Are you sure you want to delete all processed records?')) {
+            try {
+                await fetch(`${API_BASE}/reset`, { method: 'DELETE' });
+                alert('Database cleared!');
+                loadData();
+            } catch (e) {
+                alert('Error resetting data');
+            }
+        }
+    }
+
+    document.getElementById('runJobBtn').addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '⌛ Running...';
+        
+        try {
+            const response = await fetch(`${API_BASE}/run`, { method: 'POST' });
+            const data = await response.json();
+            document.getElementById('jobStatus').innerHTML = `<span class="badge bg-success status-badge">${data.status}</span>`;
+            
+            // Refresh data after a short delay to allow batch processing
+            setTimeout(loadData, 2000);
+        } catch (error) {
+            alert('Error triggering job');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '🚀 Launch ETL Job';
+        }
+    });
+
+    async function loadData() {
+        try {
+            // Load Stats
+            const statsRes = await fetch(`${API_BASE}/stats`);
+            const stats = await statsRes.json();
+            
+            document.getElementById('totalEmployees').innerText = stats.totalEmployees;
+            document.getElementById('threadCount').innerText = stats.threadCount;
+            document.getElementById('threadMessage').innerText = stats.message;
+
+            // Render Dept Table
+            const deptBody = document.getElementById('deptStatsTable');
+            deptBody.innerHTML = stats.departmentBreakdown.map(d => `
+                <tr>
+                    <td>${d.department}</td>
+                    <td><span class="badge bg-info text-dark">${d.employeeCount}</span></td>
+                    <td>${d.avgSalary}</td>
+                </tr>
+            `).join('');
+
+            // Render Threads
+            document.getElementById('threadList').innerHTML = stats.threadsUsed.map(t => 
+                `<span class="thread-tag">${t}</span>`
+            ).join('');
+
+            // Load Full Results
+            const resultsRes = await fetch(`${API_BASE}/results`);
+            const results = await resultsRes.json();
+            const empBody = document.getElementById('employeesTable');
+            empBody.innerHTML = results.employees.map(e => `
+                <tr>
+                    <td>${e.id}</td>
+                    <td>${e.fullName}</td>
+                    <td>${e.department}</td>
+                    <td>$${e.salary.toLocaleString()}</td>
+                    <td class="text-primary small">${e.processedByThread}</td>
+                </tr>
+            `).join('');
+
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
+    }
+
+    // Initial load
+    loadData();
+</script>
+
+</body>
+</html>
