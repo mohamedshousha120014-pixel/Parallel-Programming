@@ -136,6 +136,8 @@ public class BatchConfig {
     @Bean
     public SynchronizedItemStreamReader<EmployeeCSV> employeeReader() {
         EmployeeCSVReader csvReader = new EmployeeCSVReader(inputFile);
+        csvReader.setSaveState(false);
+
         return new SynchronizedItemStreamReaderBuilder<EmployeeCSV>()
                 .delegate(csvReader)
                 .build();
@@ -209,7 +211,7 @@ public class BatchConfig {
                 .listener(chunkProcessingListener())
                 // Fault tolerance: skip bad records instead of failing
                 .faultTolerant()
-                .skipLimit(5)
+                .skipLimit(0) // قلل الرقم لـ 0 مؤقتاً لاكتشاف أي خطأ خفي في البيانات
                 .skip(Exception.class)
                 .build();
     }
